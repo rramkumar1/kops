@@ -17,13 +17,12 @@ limitations under the License.
 package model
 
 import (
-	"k8s.io/kops/pkg/tokens"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/fitasks"
 	"k8s.io/kops/util/pkg/vfs"
 )
 
-// PKIModelBuilder configures PKI keypairs, as well as tokens
+// PKIModelBuilder configures PKI keypairs.
 type PKIModelBuilder struct {
 	*KopsModelContext
 	Lifecycle fi.Lifecycle
@@ -74,11 +73,6 @@ func (b *PKIModelBuilder) Build(c *fi.CloudupModelBuilderContext) error {
 			Type:      "ca",
 		}
 		c.AddTask(serviceAccount)
-	}
-
-	// Create auth tokens (though this is deprecated)
-	for _, x := range tokens.GetKubernetesAuthTokens_Deprecated() {
-		c.AddTask(&fitasks.Secret{Name: fi.PtrTo(x), Lifecycle: b.Lifecycle})
 	}
 
 	{

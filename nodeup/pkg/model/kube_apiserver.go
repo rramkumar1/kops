@@ -24,6 +24,10 @@ import (
 	"sort"
 	"strings"
 
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/klog/v2"
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/flagbuilder"
@@ -31,17 +35,11 @@ import (
 	"k8s.io/kops/pkg/kubeconfig"
 	"k8s.io/kops/pkg/kubemanifest"
 	"k8s.io/kops/pkg/model/components"
-	"k8s.io/kops/pkg/tokens"
 	"k8s.io/kops/pkg/wellknownports"
 	"k8s.io/kops/pkg/wellknownusers"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/nodeup/nodetasks"
 	"k8s.io/kops/util/pkg/proxy"
-
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 // PathAuthnConfig is the path to the custom webhook authentication config.
@@ -228,10 +226,6 @@ func (b *KubeAPIServerBuilder) Build(c *fi.NodeupModelBuilderContext) error {
 	}
 
 	if err := b.writeKubeletAPICertificate(c, &kubeAPIServer); err != nil {
-		return err
-	}
-
-	if err := b.writeStaticCredentials(c, &kubeAPIServer); err != nil {
 		return err
 	}
 
@@ -537,53 +531,6 @@ func (b *KubeAPIServerBuilder) writeKubeletAPICertificate(c *fi.NodeupModelBuild
 	kubeAPIServer.KubeletClientKey = filepath.Join(pathSrvKAPI, "kubelet-api.key")
 
 	return nil
-}
-
-func (b *KubeAPIServerBuilder) writeStaticCredentials(c *fi.NodeupModelBuilderContext, kubeAPIServer *kops.KubeAPIServerConfig) error {
-	pathSrvKAPI := filepath.Join(b.PathSrvKubernetes(), "kube-apiserver")
-
-	if b.SecretStore != nil {
-		allTokens, err := b.allAuthTokens()
-		if err != nil {
-			return err
-		}
-
-		var lines []string
-		for id, token := range allTokens {
-			if id == adminUser {
-				lines = append(lines, token+","+id+","+id+","+adminGroup)
-			} else {
-				lines = append(lines, token+","+id+","+id)
-			}
-		}
-		csv := strings.Join(lines, "\n")
-
-		c.AddTask(&nodetasks.File{
-			Path:     filepath.Join(pathSrvKAPI, "known_tokens.csv"),
-			Contents: fi.NewStringResource(csv),
-			Type:     nodetasks.FileType_File,
-			Mode:     s("0600"),
-		})
-	}
-
-	return nil
-}
-
-// allAuthTokens returns a map of all auth tokens that are present
-func (b *KubeAPIServerBuilder) allAuthTokens() (map[string]string, error) {
-	possibleTokens := tokens.GetKubernetesAuthTokens_Deprecated()
-
-	tokens := make(map[string]string)
-	for _, id := range possibleTokens {
-		token, err := b.SecretStore.FindSecret(id)
-		if err != nil {
-			return nil, err
-		}
-		if token != nil {
-			tokens[id] = string(token.Data)
-		}
-	}
-	return tokens, nil
 }
 
 // buildPod is responsible for generating the kube-apiserver pod and thus manifest file
